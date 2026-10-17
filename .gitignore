@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Streamlit secrets (never commit real credentials)
+.streamlit/secrets.toml
+
+# Previous Vite build artifacts
+node_modules/
+dist/
