@@ -13,6 +13,24 @@ from tournament import next_roster_number
 PLAYER_PHOTO_BUCKET = "player-photos"
 PHOTO_TYPES = ["jpg", "jpeg", "png", "webp"]
 PHOTO_MIME_TYPES = {"image/jpeg": "jpg", "image/png": "png", "image/webp": "webp"}
+ROLE_CHOICES = ["Player", "Captain", "Vice Captain", "Owner", "Member"]
+
+
+def normalize_role_name(role: Any) -> str:
+    if role is None:
+        return "Player"
+    text = str(role).strip()
+    if not text:
+        return "Player"
+    mapping = {
+        "player": "Player",
+        "captain": "Captain",
+        "vice captain": "Vice Captain",
+        "vice_captain": "Vice Captain",
+        "owner": "Owner",
+        "member": "Member",
+    }
+    return mapping.get(text.casefold(), text)
 
 
 def _upload_player_photo(client: Client, team_id: str, player_id: int | str, uploaded_file: Any) -> str:
@@ -212,8 +230,16 @@ def render_admin(
                     dismissal_options = ["Not out", "Bowled", "Caught", "LBW", "Run out", "Stumped", "Retired hurt", "Other"]
                     old_dismissal = str(current_batting.get("dismissal", "Not out"))
                     dismissal = st.selectbox("Dismissal", dismissal_options, index=dismissal_options.index(old_dismissal) if old_dismissal in dismissal_options else 0)
-                    save_batting = st.form_submit_button("Save batting figures", type="primary", width="stretch")
-                if save_batting:
+                    save_batting = st.form_submit_button("💾 Save batting figures", type="primary", width="stretch")
+                    delete_batting = st.form_submit_button("🗑 Delete saved batting entry", width="stretch")
+                if delete_batting:
+                    try:
+                        client.table("batting_scores").delete().eq("match_id", selected_match_id).eq("team_id", batting_team_id).eq("player_id", batter_id).execute()
+                        st.success(f"Deleted {player_map[batter_id]['name']}'s batting entry.")
+                        st.rerun()
+                    except Exception as error:
+                        st.error(f"Could not delete batting entry: {error}")
+                elif save_batting:
                     if fours + sixes > balls_faced or 4 * fours + 6 * sixes > runs:
                         st.error("Check the boundary counts against balls faced and runs scored.")
                     else:
@@ -259,8 +285,16 @@ def render_admin(
                     maidens = st.number_input("Maidens", min_value=0, max_value=6, value=int(current_bowling.get("maidens", 0)), step=1)
                     runs_conceded = st.number_input("Runs conceded", min_value=0, value=int(current_bowling.get("runs_conceded", 0)), step=1)
                     wickets = st.number_input("Wickets", min_value=0, max_value=10, value=int(current_bowling.get("wickets", 0)), step=1)
-                    save_bowling = st.form_submit_button("Save bowling figures", type="primary", width="stretch")
-                if save_bowling:
+                    save_bowling = st.form_submit_button("💾 Save bowling figures", type="primary", width="stretch")
+                    delete_bowling = st.form_submit_button("🗑 Delete saved bowling entry", width="stretch")
+                if delete_bowling:
+                    try:
+                        client.table("bowling_figures").delete().eq("match_id", selected_match_id).eq("team_id", bowling_team_id).eq("player_id", bowler_id).execute()
+                        st.success(f"Deleted {player_map[bowler_id]['name']}'s bowling entry.")
+                        st.rerun()
+                    except Exception as error:
+                        st.error(f"Could not delete bowling entry: {error}")
+                elif save_bowling:
                     if maidens > balls_bowled // 6:
                         st.error("Maidens cannot exceed the completed overs bowled.")
                     else:
@@ -291,7 +325,7 @@ def render_admin(
             with st.form("add_team_member_form", clear_on_submit=True):
                 add_team_id = st.selectbox("Team", team_ids, format_func=lambda team_id: team_names[team_id], key="add_member_team")
                 member_name = st.text_input("Player name", max_chars=80)
-                member_role = st.selectbox("Role", ["Player", "Captain", "Vice Captain", "Owner", "Member"])
+                member_role = st.selectbox("Role", ROLE_CHOICES)
                 jersey_number = st.text_input("Jersey number (optional)", max_chars=12)
                 profile_details = st.text_area("Player details (optional)", max_chars=240, placeholder="e.g. Opening batter · Right-arm medium")
                 member_photo = st.file_uploader("Player photo (optional)", type=["jpg", "jpeg", "png", "webp"], key="new_member_photo")
@@ -305,7 +339,7 @@ def render_admin(
                         "team_id": add_team_id,
                         "roster_number": next_roster_number(players, add_team_id),
                         "name": cleaned_name,
-                        "role": member_role,
+                        "role": normalize_role_name(member_role),
                         "jersey_number": jersey_number.strip() or None,
                         "profile_details": profile_details.strip() or None,
                     }
@@ -335,7 +369,7 @@ def render_admin(
                 with st.form("delete_team_member_form"):
                     delete_player_id = st.selectbox("Player", player_ids, format_func=player_label)
                     confirm_delete = st.checkbox("Confirm permanent removal")
-                    delete_member = st.form_submit_button("Remove player", width="stretch")
+                    delete_member = st.form_submit_button("🗑 Remove player", width="stretch")
                 if delete_member:
                     if not confirm_delete:
                         st.error("Tick the confirmation box to continue.")
@@ -364,8 +398,8 @@ def render_admin(
             current_url = _public_photo_url(client, str(player.get("photo_path") or "") or None)
             if current_url:
                 st.image(current_url, width=160, caption=f"Current portrait · {player['name']}")
-            role_choices = ["Player", "Captain", "Vice Captain", "Owner", "Member"]
-            current_role = str(player.get("role") or "Player")
+            role_choices = ROLE_CHOICES
+            current_role = normalize_role_name(player.get("role"))
             role_index = role_choices.index(current_role) if current_role in role_choices else 0
 
             with st.form(f"edit_profile_{profile_id}"):
@@ -390,7 +424,7 @@ def render_admin(
                             new_photo_path = None
                         update = {
                             "name": profile_name.strip(),
-                            "role": profile_role,
+                            "role": normalize_role_name(profile_role),
                             "jersey_number": jersey_number.strip() or None,
                             "profile_details": details.strip() or None,
                             "photo_path": new_photo_path,

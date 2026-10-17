@@ -26,6 +26,26 @@ st.set_page_config(page_title="KPL Season 2 · Tournament Central", page_icon="�
 
 ASSET_DIR = Path(__file__).resolve().parent / "assets"
 PLAYER_PHOTO_BUCKET = "player-photos"
+ROLE_CHOICES = ["Player", "Captain", "Vice Captain", "Owner", "Member"]
+
+
+def normalize_role_name(role: Any) -> str:
+    """Return a canonical role label for stored roster values."""
+    if role is None:
+        return "Player"
+    text = str(role).strip()
+    if not text:
+        return "Player"
+    normalized = text.casefold()
+    role_map = {
+        "captain": "Captain",
+        "vice captain": "Vice Captain",
+        "vice_captain": "Vice Captain",
+        "owner": "Owner",
+        "member": "Member",
+        "player": "Player",
+    }
+    return role_map.get(normalized, text)
 
 
 def find_image_asset(category: str, name: str) -> Path | None:
@@ -635,7 +655,7 @@ def _legacy_render_admin(
                 key="add_member_team",
             )
             member_name = st.text_input("Player name", max_chars=80)
-            member_role = st.selectbox("Role", ["Player", "Captain", "Vice Captain", "Owner", "Member"])
+            member_role = st.selectbox("Role", ROLE_CHOICES)
             jersey_number = st.text_input("Jersey number (optional)", max_chars=12)
             profile_details = st.text_area("Player details (optional)", max_chars=240, placeholder="e.g. Opening batter · Right-arm medium")
             member_photo = st.file_uploader("Player photo (optional)", type=["jpg", "jpeg", "png", "webp"], key="new_member_photo")
@@ -650,7 +670,7 @@ def _legacy_render_admin(
                     "team_id": add_team_id,
                     "roster_number": next_roster_number(players, add_team_id),
                     "name": cleaned_name,
-                    "role": member_role,
+                    "role": normalize_role_name(member_role),
                     "jersey_number": jersey_number.strip() or None,
                     "profile_details": profile_details.strip() or None,
                 }
@@ -730,8 +750,8 @@ def _legacy_render_admin(
         )
         selected_player = editable_players_by_id[profile_player_id]
         selected_player_team = str(selected_player["team_id"])
-        role_options = ["Player", "Captain", "Vice Captain", "Owner", "Member"]
-        current_role = str(selected_player.get("role") or "Player")
+        role_options = ROLE_CHOICES
+        current_role = normalize_role_name(selected_player.get("role"))
         role_index = role_options.index(current_role) if current_role in role_options else 0
         current_photo_url = player_photo_url(client, str(selected_player.get("photo_path") or "") or None)
         if current_photo_url:
@@ -768,7 +788,7 @@ def _legacy_render_admin(
 
                 profile_update = {
                     "name": profile_name.strip(),
-                    "role": profile_role,
+                    "role": normalize_role_name(profile_role),
                     "jersey_number": profile_jersey.strip() or None,
                     "profile_details": profile_details_edit.strip() or None,
                     "photo_path": new_photo_path,
@@ -984,7 +1004,7 @@ def main() -> None:
                 player["name"]
                 for player in players
                 if str(player["team_id"]) == str(team["id"])
-                and str(player.get("role", "")).strip().casefold() == "owner"
+                and normalize_role_name(player.get("role")) == "Owner"
             ]
             owner_text = ", ".join(team_owners) if team_owners else "Not listed"
             with owner_columns[index % len(owner_columns)]:
@@ -1021,7 +1041,7 @@ def main() -> None:
                                 st.caption("Player photo not uploaded")
                             st.markdown(f"**{html.escape(str(player['name']))}**")
                             jersey = str(player.get("jersey_number") or "Not set")
-                            role = str(player.get("role") or "Player")
+                            role = normalize_role_name(player.get("role"))
                             st.caption(f"{html.escape(role)} · #{html.escape(jersey)}")
                             details = str(player.get("profile_details") or "").strip()
                             if details:
