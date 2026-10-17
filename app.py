@@ -23,7 +23,16 @@ from tournament import (
     parse_team_score,
 )
 
-st.set_page_config(page_title="KPL Season 2 · Tournament Central", page_icon="🏏", layout="wide")
+st.set_page_config(
+    page_title="KPL Season 2 · Tournament Central",
+    page_icon="🏏",
+    layout="wide",
+    menu_items={
+        "Get help": None,
+        "Report a bug": None,
+        "About": None,
+    },
+)
 
 ASSET_DIR = Path(__file__).resolve().parent / "assets"
 PLAYER_PHOTO_BUCKET = "player-photos"
@@ -159,6 +168,7 @@ st.markdown(
     :root { --kpl-yellow:#ffd900; --kpl-ink:#07101b; --kpl-panel:#101d2b; }
     .stApp { background: radial-gradient(ellipse at 80% 0%, #142943 0, #07101b 48%); color:#f4f6fa; }
     [data-testid="stHeader"] { background:transparent; }
+    [data-testid="stToolbar"] { display: none !important; }
     [data-testid="stSidebar"] { background:#0b1522; border-right:1px solid #223043; }
     h1,h2,h3 { font-family:'Barlow Condensed',Impact,sans-serif !important; text-transform:uppercase; letter-spacing:.04em; }
     h1 { color:var(--kpl-yellow) !important; font-size:clamp(2.4rem,6vw,4.8rem) !important; line-height:.92 !important; }
