@@ -71,6 +71,14 @@ PLAYER_SEEDS: list[dict[str, Any]] = [
 
 DEMO_PLAYERS = PLAYER_SEEDS
 
+CONFIRMED_OWNERS: dict[str, str] = {
+    "varanasi": "Guru Prasad",
+    "og_power_star": "Santhosh",
+    "race_gurram": "Charan",
+    "royal_strikes": "Suresh BR",
+    "devara_dragons": "Rajesh",
+}
+
 SCHEDULE_SEEDS: list[dict[str, Any]] = [
     {"match_number": 1, "team1_id": "varanasi", "team2_id": "og_power_star", "start_time": "08:00", "end_time": "08:45"},
     {"match_number": 2, "team1_id": "race_gurram", "team2_id": "royal_strikes", "start_time": "08:50", "end_time": "09:35"},

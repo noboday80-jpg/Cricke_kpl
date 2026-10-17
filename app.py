@@ -13,6 +13,7 @@ from supabase import Client, create_client
 from admin_ui import render_admin as render_admin_workspace
 
 from tournament import (
+    CONFIRMED_OWNERS,
     DEMO_MATCHES,
     DEMO_PLAYERS,
     DEMO_TEAMS,
@@ -27,6 +28,19 @@ st.set_page_config(page_title="KPL Season 2 Â· Tournament Central", page_icon="ð
 ASSET_DIR = Path(__file__).resolve().parent / "assets"
 PLAYER_PHOTO_BUCKET = "player-photos"
 ROLE_CHOICES = ["Player", "Captain", "Vice Captain", "Owner", "Member"]
+
+
+def apply_dataframe_toolbar_visibility() -> None:
+    """Hide dataframe toolbar actions for public users while keeping them for admin-authenticated sessions."""
+    admin_mode = bool(st.session_state.get("admin_authenticated", False))
+    st.markdown(
+        f"""
+        <style>
+        div[data-testid="stElementToolbar"] {{ display: {'flex' if admin_mode else 'none'} !important; }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def normalize_role_name(role: Any) -> str:
@@ -46,6 +60,20 @@ def normalize_role_name(role: Any) -> str:
         "player": "Player",
     }
     return role_map.get(normalized, text)
+
+
+def resolve_team_owners(team_id: str, players: list[dict[str, Any]]) -> list[str]:
+    """Return the current owner names for a team, with the confirmed poster fallback if needed."""
+    owners = [
+        str(player["name"])
+        for player in players
+        if str(player.get("team_id")) == str(team_id)
+        and normalize_role_name(player.get("role")) == "Owner"
+    ]
+    if owners:
+        return owners
+    fallback = CONFIRMED_OWNERS.get(str(team_id))
+    return [fallback] if fallback else []
 
 
 def find_image_asset(category: str, name: str) -> Path | None:
@@ -806,6 +834,7 @@ render_admin = render_admin_workspace
 
 
 def main() -> None:
+    apply_dataframe_toolbar_visibility()
     settings = get_settings()
     client: Client | None = None
     admin_password = ""
@@ -956,8 +985,13 @@ def main() -> None:
 
     with scorecards_tab:
         st.subheader("Match scorecards")
-        scorecard_match_ids = [str(match["id"]) for match in matches]
-        matches_by_id = {str(match["id"]): match for match in matches}
+        ordered_matches = sorted(matches, key=lambda match: int(match.get("match_number", 0)))
+        scorecard_match_ids = [str(match["id"]) for match in ordered_matches]
+        matches_by_id = {str(match["id"]): match for match in ordered_matches}
+
+        if not scorecard_match_ids:
+            st.info("No fixtures are available yet.")
+            return
 
         def scorecard_match_label(match_id: str) -> str:
             match = matches_by_id[match_id]
@@ -1000,12 +1034,7 @@ def main() -> None:
         st.caption("Owner names appear here when their roster role is marked Owner.")
         owner_columns = st.columns(3)
         for index, team in enumerate(teams):
-            team_owners = [
-                player["name"]
-                for player in players
-                if str(player["team_id"]) == str(team["id"])
-                and normalize_role_name(player.get("role")) == "Owner"
-            ]
+            team_owners = resolve_team_owners(str(team["id"]), players)
             owner_text = ", ".join(team_owners) if team_owners else "Not listed"
             with owner_columns[index % len(owner_columns)]:
                 st.markdown(

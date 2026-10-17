@@ -114,8 +114,8 @@ def render_admin(
     home_name, away_name = team_names[home_id], team_names[away_id]
     match_team_ids = [home_id, away_id]
 
-    match_score_tab, batter_bowler_tab, team_members_tab, player_profiles_tab = st.tabs(
-        ["Live score entry", "Batter & bowler", "Team members", "Player profiles"]
+    match_score_tab, batter_bowler_tab, team_members_tab, player_profiles_tab, reset_data_tab = st.tabs(
+        ["Live score entry", "Batter & bowler", "Team members", "Player profiles", "Delete all data"]
     )
 
     with match_score_tab:
@@ -231,15 +231,7 @@ def render_admin(
                     old_dismissal = str(current_batting.get("dismissal", "Not out"))
                     dismissal = st.selectbox("Dismissal", dismissal_options, index=dismissal_options.index(old_dismissal) if old_dismissal in dismissal_options else 0)
                     save_batting = st.form_submit_button("💾 Save batting figures", type="primary", width="stretch")
-                    delete_batting = st.form_submit_button("🗑 Delete saved batting entry", width="stretch")
-                if delete_batting:
-                    try:
-                        client.table("batting_scores").delete().eq("match_id", selected_match_id).eq("team_id", batting_team_id).eq("player_id", batter_id).execute()
-                        st.success(f"Deleted {player_map[batter_id]['name']}'s batting entry.")
-                        st.rerun()
-                    except Exception as error:
-                        st.error(f"Could not delete batting entry: {error}")
-                elif save_batting:
+                if save_batting:
                     if fours + sixes > balls_faced or 4 * fours + 6 * sixes > runs:
                         st.error("Check the boundary counts against balls faced and runs scored.")
                     else:
@@ -261,6 +253,15 @@ def render_admin(
                             st.rerun()
                         except Exception as error:
                             st.error(f"Could not save batting figures: {error}")
+                if current_batting:
+                    st.markdown("**Delete this batting entry**")
+                    if st.button(f"🗑 Delete {player_map[batter_id]['name']} batting", key=f"delete_batting_{selected_match_id}_{batting_team_id}_{batter_id}"):
+                        try:
+                            client.table("batting_scores").delete().eq("match_id", selected_match_id).eq("team_id", batting_team_id).eq("player_id", batter_id).execute()
+                            st.success(f"Deleted {player_map[batter_id]['name']}'s batting entry.")
+                            st.rerun()
+                        except Exception as error:
+                            st.error(f"Could not delete batting entry: {error}")
 
         with bowler_col:
             st.markdown("##### Bowling")
@@ -286,15 +287,7 @@ def render_admin(
                     runs_conceded = st.number_input("Runs conceded", min_value=0, value=int(current_bowling.get("runs_conceded", 0)), step=1)
                     wickets = st.number_input("Wickets", min_value=0, max_value=10, value=int(current_bowling.get("wickets", 0)), step=1)
                     save_bowling = st.form_submit_button("💾 Save bowling figures", type="primary", width="stretch")
-                    delete_bowling = st.form_submit_button("🗑 Delete saved bowling entry", width="stretch")
-                if delete_bowling:
-                    try:
-                        client.table("bowling_figures").delete().eq("match_id", selected_match_id).eq("team_id", bowling_team_id).eq("player_id", bowler_id).execute()
-                        st.success(f"Deleted {player_map[bowler_id]['name']}'s bowling entry.")
-                        st.rerun()
-                    except Exception as error:
-                        st.error(f"Could not delete bowling entry: {error}")
-                elif save_bowling:
+                if save_bowling:
                     if maidens > balls_bowled // 6:
                         st.error("Maidens cannot exceed the completed overs bowled.")
                     else:
@@ -315,6 +308,35 @@ def render_admin(
                             st.rerun()
                         except Exception as error:
                             st.error(f"Could not save bowling figures: {error}")
+                if current_bowling:
+                    st.markdown("**Delete this bowling entry**")
+                    if st.button(f"🗑 Delete {player_map[bowler_id]['name']} bowling", key=f"delete_bowling_{selected_match_id}_{bowling_team_id}_{bowler_id}"):
+                        try:
+                            client.table("bowling_figures").delete().eq("match_id", selected_match_id).eq("team_id", bowling_team_id).eq("player_id", bowler_id).execute()
+                            st.success(f"Deleted {player_map[bowler_id]['name']}'s bowling entry.")
+                            st.rerun()
+                        except Exception as error:
+                            st.error(f"Could not delete bowling entry: {error}")
+
+    with reset_data_tab:
+        st.markdown("#### Reset shared tournament data")
+        st.warning("This permanently removes all shared score entries, roster records, and match data for the app. This action cannot be undone.")
+        st.caption("This only clears the shared tournament data used by the app. It does not remove the fixed team list from the setup file.")
+        confirm_delete = st.checkbox("I understand and want to delete all shared app data.", key="confirm_delete_all_app_data")
+        if st.button("Delete all tournament data", type="primary", key="delete_all_tournament_data_button"):
+            if not confirm_delete:
+                st.warning("Check the confirmation box before deleting the shared data.")
+            else:
+                try:
+                    for table_name in ["batting_scores", "bowling_figures", "players", "matches"]:
+                        rows = client.table(table_name).select("id").execute().data or []
+                        ids = [row["id"] for row in rows if row.get("id") is not None]
+                        if ids:
+                            client.table(table_name).delete().in_("id", ids).execute()
+                    st.success("All shared score and roster data has been cleared.")
+                    st.rerun()
+                except Exception as error:
+                    st.error(f"Could not clear the shared tournament data: {error}")
 
     with team_members_tab:
         st.caption("Add a player or remove a roster entry.")

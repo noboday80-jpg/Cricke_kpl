@@ -2,6 +2,7 @@ import unittest
 from collections import Counter
 
 from tournament import (
+    CONFIRMED_OWNERS,
     DEMO_MATCHES,
     DEMO_PLAYERS,
     DEMO_TEAMS,
@@ -44,6 +45,11 @@ class TournamentDataTests(unittest.TestCase):
         self.assertEqual(owners["varanasi"], "Guru Prasad")
         self.assertEqual(owners["race_gurram"], "Charan")
         self.assertEqual(owners["devara_dragons"], "Rajesh")
+
+    def test_confirmed_owner_fallbacks_are_available(self) -> None:
+        self.assertEqual(CONFIRMED_OWNERS["varanasi"], "Guru Prasad")
+        self.assertEqual(CONFIRMED_OWNERS["race_gurram"], "Charan")
+        self.assertEqual(CONFIRMED_OWNERS["devara_dragons"], "Rajesh")
 
     def test_next_roster_number_is_scoped_to_team(self) -> None:
         self.assertEqual(next_roster_number(DEMO_PLAYERS, "varanasi"), 8)
